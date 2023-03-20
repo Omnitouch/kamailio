@@ -411,7 +411,51 @@ static int assert_identity_fixup(void ** param, int param_no) {
  */
 static int w_save(struct sip_msg* _m, char* _d, char* _cflags)
 {
-	return save(_m, (udomain_t*)_d, ((int)(unsigned long)_cflags));
+    udomain_t* domain = (udomain_t*)_d;
+    int flags = (int)(unsigned long)_cflags;
+    ucontact_info_t* ci = NULL;
+    ucontact_t* c = NULL, *old_c = NULL;
+    int ret = save(_m, domain, flags);
+
+    if (ret == 1) {
+        // Get the contact information
+        if (parse_headers(_m, HDR_EOH_F, 0) == -1) {
+            LM_ERR("failed to parse headers\n");
+            return -1;
+        }
+
+        if (!(_m->contact) || (!(_m->contact->body.s)) || (_m->contact->body.len == 0)) {
+            LM_ERR("no contact header found\n");
+            return -1;
+        }
+
+        if (parse_contact(_m->contact) < 0) {
+            LM_ERR("failed to parse contact\n");
+            return -1;
+        }
+
+        if (contact_iterator(&ci, _m, 0) < 0) {
+            LM_ERR("failed to obtain a contact instance\n");
+            return -1;
+        }
+
+        lock_udomain(domain);
+
+        // Check if there is a matching AoR in the location table and remove all except the new one
+        if (ul.get_ucontact(domain, &ci->aor, &ci->received, ci->path, &c) == 0) {
+            while (ul.get_next_udomain_contact(c, &old_c) == 0) {
+                if (old_c != c) {
+                    ul.delete_ucontact(domain, old_c);
+                    ul.release_ucontact(old_c);
+                }
+            }
+            ul.release_ucontact(c);
+        }
+
+        unlock_udomain(domain);
+    }
+
+    return ret;
 }
 
 static int w_save_pending(struct sip_msg* _m, char* _d, char* _cflags)
