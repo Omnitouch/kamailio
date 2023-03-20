@@ -59,7 +59,6 @@
 #include "../../core/mod_fix.h"
 #include "../../core/cfg/cfg_struct.h"
 #include "../ims_ipsec_pcscf/cmd.h"
-#include "../../modules/ims_usrloc_pcscf/ul_callback.h"
 
 /* Bindings to PUA */
 #include "../pua/pua_bind.h"
@@ -407,31 +406,61 @@ static int assert_identity_fixup(void ** param, int param_no) {
 	return E_CFG;
 }
 
+static int extract_aor_from_uri(str uri, str *aor) {
+    struct sip_uri parsed_uri;
+
+    if (parse_uri(uri.s, uri.len, &parsed_uri) < 0) {
+        LM_ERR("Failed to parse URI: %.*s\n", uri.len, uri.s);
+        return -1;
+    }
+
+    *aor = parsed_uri.user;
+    return 0;
+}
+
 /*! \brief
  * Wrapper to save(location)
  */
-static void replace_existing_aors(ucontact_t* c, void* param) {
-    if (c) {
-        LM_DBG("Removing existing AoR %.*s\n", c->aor->len, c->aor->s);
-        ul.delete_ucontact(c->domain, c->aor, c);
-    }
-}
+static int w_save(struct sip_msg* _m, char* _d, char* _cflags) {
+    udomain_t *domain = (udomain_t *)_d;
+    str aor, contact_uri;
+    urecord_t *record;
+    ucontact_info_t contact_info;
 
-static int w_save(struct sip_msg* _m, char* _d, char* _cflags)
-{
-    int result = save(_m, (udomain_t*)_d, ((int)(unsigned long)_cflags));
-
-    if (result == 1) {
-        udomain_t* domain = (udomain_t*)_d;
-        str* aor = &_m->parsed_uri.user;
-
-        ul.lock_udomain(domain, aor);
-        ul.foreach_contact(domain, aor, replace_existing_aors, NULL);
-        ul.unlock_udomain(domain, aor);
+    // Extract AoR from the URI
+    if (extract_aor_from_uri(_m->first_line.u.request.uri, &aor) < 0) {
+        LM_ERR("Failed to extract AoR from URI\n");
+        return -1;
     }
 
-    return result;
+    // Lock the domain
+    lock_udomain(domain, &aor);
+
+    // Get the existing record (if any)
+    if (get_urecord(domain, &aor, &record) == 0) {
+        LM_DBG("Found existing record for AoR %.*s\n", aor.len, aor.s);
+
+        // Delete the existing record
+        if (delete_urecord(domain, &aor, record, 0) < 0) {
+            LM_ERR("Failed to delete existing record for AoR %.*s\n", aor.len, aor.s);
+            unlock_udomain(domain, &aor);
+            return -1;
+        }
+    }
+
+    // Save the new registration
+    if (save(_m, domain, ((int)(unsigned long)_cflags)) < 0) {
+        LM_ERR("Failed to save new registration for AoR %.*s\n", aor.len, aor.s);
+        unlock_udomain(domain, &aor);
+        return -1;
+    }
+
+    // Unlock the domain
+    unlock_udomain(domain, &aor);
+
+    return 1;
 }
+
 static int w_save_pending(struct sip_msg* _m, char* _d, char* _cflags)
 {
 	return save_pending(_m, (udomain_t*)_d);
