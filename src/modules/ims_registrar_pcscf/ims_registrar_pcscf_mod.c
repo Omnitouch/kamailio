@@ -406,11 +406,31 @@ static int assert_identity_fixup(void ** param, int param_no) {
 	return E_CFG;
 }
 
-static int extract_aor_from_uri(str uri, str *aor) {
+/*! \brief
+ * Wrapper to save(location)
+ */
+static int extract_aor_from_contact(struct sip_msg *msg, str *aor) {
     struct sip_uri parsed_uri;
 
-    if (parse_uri(uri.s, uri.len, &parsed_uri) < 0) {
-        LM_ERR("Failed to parse URI: %.*s\n", uri.len, uri.s);
+    if (!msg->contact) {
+        if (parse_headers(msg, HDR_CONTACT_F, 0) == -1) {
+            LM_ERR("Failed to parse contact header\n");
+            return -1;
+        }
+    }
+
+    if (!msg->contact) {
+        LM_ERR("No contact header found\n");
+        return -1;
+    }
+
+    if (parse_contact(msg->contact) < 0) {
+        LM_ERR("Failed to parse contact header\n");
+        return -1;
+    }
+
+    if (parse_uri(get_contact(msg)->uri.s, get_contact(msg)->uri.len, &parsed_uri) < 0) {
+        LM_ERR("Failed to parse contact URI: %.*s\n", get_contact(msg)->uri.len, get_contact(msg)->uri.s);
         return -1;
     }
 
@@ -418,18 +438,16 @@ static int extract_aor_from_uri(str uri, str *aor) {
     return 0;
 }
 
-/*! \brief
- * Wrapper to save(location)
- */
+// Modified w_save function
 static int w_save(struct sip_msg* _m, char* _d, char* _cflags) {
     udomain_t *domain = (udomain_t *)_d;
-    str aor, contact_uri;
+    str aor;
     urecord_t *record;
-    ucontact_info_t contact_info;
+    ucontact_t *contact;
 
-    // Extract AoR from the URI
-    if (extract_aor_from_uri(_m->first_line.u.request.uri, &aor) < 0) {
-        LM_ERR("Failed to extract AoR from URI\n");
+    // Extract AoR from the contact header
+    if (extract_aor_from_contact(_m, &aor) < 0) {
+        LM_ERR("Failed to extract AoR from contact header\n");
         return -1;
     }
 
@@ -440,11 +458,17 @@ static int w_save(struct sip_msg* _m, char* _d, char* _cflags) {
     if (get_urecord(domain, &aor, &record) == 0) {
         LM_DBG("Found existing record for AoR %.*s\n", aor.len, aor.s);
 
-        // Delete the existing record
-        if (delete_urecord(domain, &aor, record, 0) < 0) {
-            LM_ERR("Failed to delete existing record for AoR %.*s\n", aor.len, aor.s);
-            unlock_udomain(domain, &aor);
-            return -1;
+        // Iterate over contacts and delete duplicates
+        contact = record->contacts;
+        while (contact) {
+            if (str_strcmp(&aor, &contact->aor) == 0) {
+                if (delete_ucontact(record, contact) < 0) {
+                    LM_ERR("Failed to delete existing contact for AoR %.*s\n", aor.len, aor.s);
+                    unlock_udomain(domain, &aor);
+                    return -1;
+                }
+            }
+            contact = contact->next;
         }
     }
 
