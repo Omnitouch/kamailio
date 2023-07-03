@@ -360,6 +360,7 @@ static inline void process_impurecord(impurecord_t* _r) {
     unsigned int sl;
     ucontact_t* ptr;
     int hascontacts;
+    int has_expired;
     udomain_t* _d;
     reg_subscriber *s, *next;
     subs_t* sub_dialog;
@@ -409,6 +410,7 @@ static inline void process_impurecord(impurecord_t* _r) {
 			_r->linked_contacts.num3gppcontacts);
     flag = 0;
     hascontacts = 0;
+    has_expired = 0;
     num_contacts_to_expire = 0;
 	impu_contact = _r->linked_contacts.head;
 	k=0;
@@ -427,6 +429,7 @@ static inline void process_impurecord(impurecord_t* _r) {
 					run_ul_callbacks(_r->cbs, UL_IMPU_DELETE_CONTACT, _r, ptr);
 				}
 				hascontacts = 1;    // we do this because the impu must only be deleted if in state deleted....
+                has_expired = 1;    // todo we need to do this to ensure the timeout ser message is sent
 				mustdeleteimpu = 0;
 			} else if (ptr->state == CONTACT_VALID) {
 				LM_DBG("Contact: <%.*s> is in state valid but it has expired.... ignoring as the contact check will set the appropriate action/state\n", ptr->c.len, ptr->c.s);
@@ -474,11 +477,16 @@ static inline void process_impurecord(impurecord_t* _r) {
         register_udomain("location", &_d);
         delete_impurecord(_d, &_r->public_identity, _r);
     } else {
-        if (!hascontacts) {
+        if (!hascontacts || has_expired) {
+            int type = UL_IMPU_UNREG_NC;
+            if (has_expired) { 
+                type = UL_IMPU_UNREG_EXPIRED;
+            }
+
             LM_DBG("This impu is not to be deleted but has no contacts - changing state to IMPU_UNREGISTERED\n");
 			//run callback  here UL_IMPU_UNREG_NC for UL_IMPU_UNREG_NC
-			if (_r->reg_state != IMPU_UNREGISTERED && exists_ulcb_type(_r->cbs, UL_IMPU_UNREG_NC)) {
-				run_ul_callbacks(_r->cbs, UL_IMPU_UNREG_NC, _r, 0);
+			if (_r->reg_state != IMPU_UNREGISTERED && exists_ulcb_type(_r->cbs, type)) {
+				run_ul_callbacks(_r->cbs, type, _r, 0);
 			}
 			_r->reg_state = IMPU_UNREGISTERED;
         }
