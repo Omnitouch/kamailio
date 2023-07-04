@@ -72,7 +72,6 @@ void ul_impu_removed(impurecord_t* r, ucontact_t* c, int type, void* param) {
 
     if (type == UL_IMPU_UNREG_EXPIRED) {
         assignment_type = AVP_IMS_SAR_TIMEOUT_DEREGISTRATION;
-        r->send_sar_on_delete = 1; // todo is this correct?
     }
 
     //we only send SAR if the REGISTRATION state is (NOT) IMPU_NOT_REGISTERED and if send_sar_on_delete is set
