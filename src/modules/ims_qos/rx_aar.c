@@ -606,7 +606,7 @@ int add_media_components(AAAMessage* aar, struct sip_msg *req,
  * Sends the Authorization Authentication Request - specifically this is an asynchronous AAR sent if another update adding video has failed so we need to remove video
  */
 
-int rx_send_aar_update_no_video(AAASession* auth) {
+int rx_send_aar_update_no_video(AAASession* auth, str* callid) {
 
     AAAMessage* aar = 0;
 
@@ -735,11 +735,9 @@ int rx_send_aar_update_no_video(AAASession* auth) {
 
     LM_DBG("sending AAR to PCRF\n");
     if (rx_forced_peer.len)
-        ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer,
-            NULL, NULL);
+        ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer, NULL, NULL, callid);
     else
-        ret = cdpb.AAASendMessage(aar, NULL,
-            NULL);
+        ret = cdpb.AAASendMessage(aar, NULL, NULL, callid);
 
     return ret;
 
@@ -917,10 +915,10 @@ int rx_send_aar(struct sip_msg *req, struct sip_msg *res,
     LM_DBG("sending AAR to PCRF\n");
     if (rx_forced_peer.len)
         ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer,
-            (void*) async_aar_callback, (void*) saved_t_data);
+            (void*) async_aar_callback, (void*) saved_t_data, &req->callid->body);
     else
         ret = cdpb.AAASendMessage(aar, (void*) async_aar_callback,
-            (void*) saved_t_data);
+            (void*) saved_t_data, &req->callid->body);
 
     return ret;
 
@@ -1055,10 +1053,10 @@ int rx_send_aar_register(struct sip_msg *msg, AAASession* auth, saved_transactio
     LM_DBG("sending AAR to PCRF\n");
     if (rx_forced_peer.len)
         ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer,
-            (void*) async_aar_reg_callback, (void*) saved_t_data);
+            (void*) async_aar_reg_callback, (void*) saved_t_data, &msg->callid->body);
     else
         ret = cdpb.AAASendMessage(aar, (void*) async_aar_reg_callback,
-            (void*) saved_t_data);
+            (void*) saved_t_data, &msg->callid->body);
 
     return ret;
 

@@ -446,7 +446,7 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 						rx_session_id->len, rx_session_id->s);
 
 				LM_DBG("Sending STR\n");
-				rx_send_str(rx_session_id);
+				rx_send_str(rx_session_id, &msg->callid->body);
 		} else if (type == DLGCB_CONFIRMED) {
 
 				LM_DBG("Callback for confirmed dialog - copy new flow description into current flow description\n");
@@ -557,7 +557,7 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 												LM_DBG("New flow description has video in it, and current does not - this means we added video and it failed further upstream - "
 														"so we must remove the video\n");
 												//We need to send AAR asynchronously with current fd
-												rx_send_aar_update_no_video(auth);
+												rx_send_aar_update_no_video(auth, &msg->callid->body);
 												must_unlock_aaa = 0;
 
 										}
@@ -598,7 +598,7 @@ void callback_pcscf_contact_cb(struct pcontact *c, int type, void *param)
 						LM_DBG("Received notification of contact (in state [%d] deleted for signalling bearer with  with Rx session ID: [%.*s]\n",
 								c->reg_state, c->rx_session_id.len, c->rx_session_id.s);
 						LM_DBG("Sending STR\n");
-						rx_send_str(&c->rx_session_id);
+						rx_send_str(&c->rx_session_id, &c->callid);
 				}
 		}
 }
