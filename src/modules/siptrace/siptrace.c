@@ -102,6 +102,7 @@ static int hlog_diam(AAAMessage *msg, str* correlationid);
 static int msg2str(AAAMessage *msg, char *buf, unsigned int buf_sz);
 static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth);
 static int str_to_hex(str* string, char* buf, unsigned int buf_sz);
+static int is_printable_string(char* buf, int buf_sz);
 
 static int sip_trace_store_db(siptrace_data_t *sto);
 
@@ -2100,8 +2101,8 @@ static int w_hlog2(struct sip_msg *msg, char *correlationid, char *message)
 	return hlog(msg, &scorrelationid, &smessage);
 }
 
-//todo remove
-static void debug_file_log(AAAMessage *msg) {
+/* For debugging purposes */
+static void debug_file_log(AAAMessage *msg, str* correlationid) {
 	enum { BUF_SZ = 9000 };
 	char buf[BUF_SZ] = "";
 	FILE *file = fopen("/var/log/kamailio_diam.txt", "a");
@@ -2114,7 +2115,8 @@ static void debug_file_log(AAAMessage *msg) {
 	int sz = msg2str(msg, buf, BUF_SZ);
 
 	fprintf(file, "MSG SZ (%i)\n", sz);
-	fprintf(file, "%s\n", buf);
+	fprintf(file, "correlationid '%.*s'\n", correlationid->len, correlationid->s);
+	fprintf(file, "%s", buf);
 	fprintf(file, "\n\n");
 
 	LM_ERR("we wrote to file\n");
@@ -2267,7 +2269,7 @@ static int msg2str(AAAMessage *msg, char *buf, unsigned int buf_sz) {
 	}
 	
 	/* Assuming that buf_sz can contain the message header info */
-	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "AAA_MESSAGE [%s]\n", is_req(msg) ? "REQUEST" : "RESPONSE");
+	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "%s\n", is_req(msg) ? "REQUEST" : "RESPONSE");
 	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "Code = %u\n", msg->commandCode);
 	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "Flags = %x\n", msg->flags);
 
@@ -2309,13 +2311,13 @@ static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
 	}
 
 	/* Initialise with default type */
-	char* data_type_str = "error";
+	char* data_type_str = "data=";
 
 	/* Data */
 	switch(avp->type) {
 		case AAA_AVP_STRING_TYPE:
 		{
-			data_type_str = "AAA_AVP_STRING_TYPE";
+			data_type_str = "string=";
 			avp_data_sz = snprintf(avp_data,
 				MAX_AVP_DATA_SZ,
 				"'%.*s'",
@@ -2326,7 +2328,7 @@ static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
 		}
 		case AAA_AVP_INTEGER32_TYPE:
 		{
-			data_type_str = "AAA_AVP_INTEGER32_TYPE";
+			data_type_str = "int=";
 			avp_data_sz += snprintf(avp_data,
 				MAX_AVP_DATA_SZ,
 				"%u",
@@ -2336,7 +2338,7 @@ static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
 		}
 		case AAA_AVP_ADDRESS_TYPE:
 		{
-			data_type_str = "AAA_AVP_ADDRESS_TYPE";
+			data_type_str = "address=";
 			i = 1;
 			switch (avp->data.len) {
 				case 4: i=i*0;
@@ -2371,30 +2373,45 @@ static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
 		case AAA_AVP_INTEGER64_TYPE:
 		{
 			LM_WARN("Print error: Don't know how to print AAA_AVP_INTEGER64_TYPE yet. Printing the hex instead...\n");
-			data_type_str = "AAA_AVP_INTEGER64_TYPE";
+			data_type_str = "hex=";
 			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
 			break;
 		}
 		case AAA_AVP_TIME_TYPE:
 		{
 			LM_WARN("Print error: Don't know how to print AAA_AVP_TIME_TYPE yet. Printing the hex instead...\n");
-			data_type_str = "AAA_AVP_TIME_TYPE";
+			data_type_str = "hex=";
 			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
 			break;
 		}
 		case AAA_AVP_DATA_TYPE:
 		{
-			data_type_str = "AAA_AVP_DATA_TYPE";
 
 			/* Following ims_diameter_server/avp_helper.c avp2json()
-			 * Why is 4 the magic number? */
-			if (avp->data.len > 4) {
+			 * Why is 4 the magic number?
+			 * Why isn't this a int type? */
+			if (4 == avp->data.len) {
+				data_type_str = "int=";
+				avp_data_sz += snprintf(avp_data,
+					MAX_AVP_DATA_SZ,
+					"%u",
+					htonl(*((unsigned int*)avp->data.s))
+				);
+			} else if (4 < avp->data.len) {
 				/* Following ims_diameter_server/avp_helper.c avp2json()
 				 * How is it a string in this case?!? 
 				 * Why isn't it a string type? */
-				if (0 < strnlen(avp->data.s, avp->data.len)) {
-					avp_data_sz = snprintf(avp_data, MAX_AVP_DATA_SZ, "'%.*s'", avp->data.len, avp->data.s);
+				int str_len = strnlen(avp->data.s, avp->data.len);
+				if (0 < str_len) {
+					if (is_printable_string(avp->data.s, avp->data.len) && (avp->data.len == str_len)) {
+						data_type_str = "string=";
+						avp_data_sz = snprintf(avp_data, MAX_AVP_DATA_SZ, "'%.*s'", avp->data.len, avp->data.s);
+					} else {
+						data_type_str = "hex=";
+						avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+					}
 				} else {
+					data_type_str = "avp list:";
 					AAA_AVP_LIST list;
 					list = CDP_AAAUngroupAVPS((str)avp->data);
 					avp_it = list.head;
@@ -2416,34 +2433,28 @@ static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
 			}
 			else {
 				LM_WARN("Print warning: Don't know how to print this specific AAA_AVP_DATA_TYPE value. Printing the hex instead...\n");
+				data_type_str = "hex=";
 				avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
 			}
 			break;
 		}
 		default:
 		{
-			data_type_str = "unknown";
+			data_type_str = "hex=";
 			LM_WARN("Print error: Don't know how to print this data type [%d]. Printing the hex instead...\n", avp->type);
 			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
 			break;
 		}
 	}
 
-	/* Header */
-	avp_sz = snprintf(buf, buf_sz,
-		"AVP (depth=%u):\n"
-		"\tCode=%u\n"
-		"\tFlags=%x\n"
-		"\tDataType=%s\n"
-		"\tVendorID=%u\n"
-		"\tDataLen(octets)=%u\n"
-		"\tData=%s",
-		depth,
+	char* padding = "\t\t\t\t\t\t\t\t";
+	avp_sz = snprintf(buf, buf_sz, 
+		"%.*sAVP: code=%u vendor=%u flags=%x %s%s",
+		depth, padding,
 		avp->code,
+		avp->vendorId,
 		avp->flags,
 		data_type_str,
-		avp->vendorId,
-		avp->data.len,
 		avp_data);
 
 	return avp_sz;
@@ -2479,4 +2490,19 @@ static int str_to_hex(str* string, char* buf, unsigned int buf_sz) {
 	}
 
 	return bytes_encoded;
+}
+
+/**
+ *
+ */
+int is_printable_string(char* buf, int buf_sz) {
+	for (int i = 0; i < buf_sz; ++i) {
+		int chint = (int)buf[i];
+
+		if ((chint < 0) || (126 < chint)) {
+			return 0;
+		}
+	}
+
+	return 1;
 }
