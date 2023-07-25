@@ -26,6 +26,7 @@
 
 #include "../../core/str.h"
 #include "../../core/usr_avp.h"
+#include "../../modules/cdp/diameter.h"
 
 #ifdef STATISTICS
 #include "../../core/counters.h"
@@ -70,5 +71,7 @@ typedef struct {
 
 enum siptrace_type_t {SIPTRACE_NONE=0, SIPTRACE_MESSAGE = 'm',
 	SIPTRACE_TRANSACTION = 't', SIPTRACE_DIALOG = 'd'};
+
+typedef int(*hlog_diam_fn)(AAAMessage *msg, str* correlationID);
 
 #endif

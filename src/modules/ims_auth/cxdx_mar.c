@@ -541,9 +541,9 @@ int cxdx_send_mar(struct sip_msg *msg, str public_identity, str private_identity
     if (!cxdx_add_server_name(mar, server_name)) goto error1;
 
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(mar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data);
+        cdpb.AAASendMessageToPeer(mar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
     else
-        cdpb.AAASendMessage(mar, (void*) async_cdp_callback, (void*) transaction_data);
+        cdpb.AAASendMessage(mar, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
 
 
     LM_DBG("Successfully sent async diameter\n");
