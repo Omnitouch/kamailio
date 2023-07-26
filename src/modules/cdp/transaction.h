@@ -55,6 +55,7 @@ typedef struct _cdp_trans_t{
 	AAAMsgIdentifier endtoendid;	/**< End-to-end id of the messages */
 	AAAMsgIdentifier hopbyhopid;	/**< Hop-by-hop id of the messages */
 	AAATransactionCallback_f *cb;	/**< transactional callback function */
+	char correlationID[64];         /**< copy of the correlationID for hlog-ing the diameter answer */
 	void **ptr;						/**< generic pointer to pass to the callback */
 	AAAMessage *ans;				/**< answer for the transaction */
 	time_t expires;					/**< time of expiration, when a time-out event will happen */
@@ -72,7 +73,7 @@ typedef struct {
 int cdp_trans_init();
 int cdp_trans_destroy();
 
-cdp_trans_t* cdp_add_trans(AAAMessage *msg,AAATransactionCallback_f *cb, void *ptr,int timeout,int auto_drop);
+cdp_trans_t* cdp_add_trans(AAAMessage *msg,AAATransactionCallback_f *cb, void *ptr,int timeout,int auto_drop,str* correlationID);
 void del_trans(AAAMessage *msg);
 cdp_trans_t* cdp_take_trans(AAAMessage *msg);
 void cdp_free_trans(cdp_trans_t *x);

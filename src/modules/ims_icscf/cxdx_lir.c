@@ -255,9 +255,9 @@ int cxdx_send_lir(struct sip_msg *msg, str public_identity, saved_lir_transactio
     if (!cxdx_add_public_identity(lir, public_identity)) goto error1;
 
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(lir, &cxdx_forced_peer, (void*) async_cdp_lir_callback, (void*) transaction_data);
+        cdpb.AAASendMessageToPeer(lir, &cxdx_forced_peer, (void*) async_cdp_lir_callback, (void*) transaction_data, &msg->callid->body);
     else
-        cdpb.AAASendMessage(lir, (void*) async_cdp_lir_callback, (void*) transaction_data);
+        cdpb.AAASendMessage(lir, (void*) async_cdp_lir_callback, (void*) transaction_data, &msg->callid->body);
 
     LM_DBG("Successfully sent async diameter\n");
 

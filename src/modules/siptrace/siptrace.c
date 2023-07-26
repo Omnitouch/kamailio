@@ -53,6 +53,8 @@
 #include "../../core/onsend.h"
 #include "../../core/events.h"
 #include "../../core/kemi.h"
+#include "../../modules/cdp/diameter.h"
+#include "../../modules/cdp/diameter_api.h"
 
 #include "siptrace_data.h"
 #include "siptrace_hep.h"
@@ -72,6 +74,8 @@ MODULE_VERSION
 
 struct tm_binds tmb;
 struct dlg_binds dlgb;
+AAAUngroupAVPS_f CDP_AAAUngroupAVPS;
+AAAFreeAVPList_f CDP_AAAFreeAVPList;
 
 /** SL API structure */
 sl_api_t slb;
@@ -94,6 +98,11 @@ static enum siptrace_type_t parse_siptrace_flag(str* sflags);
 
 static int w_hlog1(struct sip_msg *, char *message, char *);
 static int w_hlog2(struct sip_msg *, char *correlationid, char *message);
+static int hlog_diam(AAAMessage *msg, str* correlationid);
+static int msg2str(AAAMessage *msg, char *buf, unsigned int buf_sz);
+static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth);
+static int str_to_hex(str* string, char* buf, unsigned int buf_sz);
+static int is_printable_string(char* buf, int buf_sz);
 
 static int sip_trace_store_db(siptrace_data_t *sto);
 
@@ -199,6 +208,7 @@ static cmd_export_t cmds[] = {
 		ANY_ROUTE},
 	{"hlog", (cmd_function)w_hlog2, 2, fixup_spve_spve, 0,
 		ANY_ROUTE},
+	{"hlog_diam", (cmd_function)hlog_diam, NO_SCRIPT, 0, 0},
 	{"sip_trace_mode", (cmd_function)w_sip_trace_mode, 1, fixup_spve_null,
 		fixup_free_spve_null, ANY_ROUTE},
 	{0, 0, 0, 0, 0, 0}
@@ -304,6 +314,9 @@ static int mod_init(void)
 		LM_ERR("unsupported version of HEP");
 		return -1;
 	}
+
+	CDP_AAAUngroupAVPS = (AAAUngroupAVPS_f)find_export("AAAUngroupAVPS", NO_SCRIPT, 0);
+	CDP_AAAFreeAVPList = (AAAFreeAVPList_f)find_export("AAAFreeAVPList", NO_SCRIPT, 0);
 
 	/* Find a database module if needed */
 	if(trace_to_database_flag != NULL && *trace_to_database_flag != 0) {
@@ -2088,6 +2101,45 @@ static int w_hlog2(struct sip_msg *msg, char *correlationid, char *message)
 	return hlog(msg, &scorrelationid, &smessage);
 }
 
+/* For debugging purposes */
+static void debug_file_log(AAAMessage *msg, str* correlationid) {
+	enum { BUF_SZ = 9000 };
+	char buf[BUF_SZ] = "";
+	FILE *file = fopen("/var/log/kamailio_diam.txt", "a");
+
+	if (file == NULL) {
+		printf("Error opening the file.\n");
+		return;
+	}
+
+	int sz = msg2str(msg, buf, BUF_SZ);
+
+	fprintf(file, "MSG SZ (%i)\n", sz);
+	fprintf(file, "correlationid '%.*s'\n", correlationid->len, correlationid->s);
+	fprintf(file, "%s", buf);
+	fprintf(file, "\n\n");
+
+	LM_ERR("we wrote to file\n");
+
+	// Close the file
+	fclose(file);
+}
+
+/**
+ *
+ */
+static int hlog_diam(AAAMessage *msg, str* correlationid)
+{
+	enum { BUF_SZ = 9000 };
+	char buf[BUF_SZ] = "";
+
+	msg2str(msg, buf, BUF_SZ);
+
+	str message_str = {buf, strlen(buf)};
+
+	return hlog(NULL, correlationid, &message_str);
+}
+
 /**
  *
  */
@@ -2202,4 +2254,255 @@ int mod_register(char *path, int *dlflags, void *p1, void *p2)
 {
 	sr_kemi_modules_add(sr_kemi_siptrace_exports);
 	return 0;
+}
+
+/**
+ *
+ */
+static int msg2str(AAAMessage *msg, char *buf, unsigned int buf_sz) {
+	int bytes_encoded = 0;
+
+	if ((NULL == msg) ||
+	    (NULL == buf)) {
+		LM_ERR("Parameter error: msg and/or buf are NULL\n");
+		return 0;
+	}
+	
+	/* Assuming that buf_sz can contain the message header info */
+	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "%s\n", is_req(msg) ? "REQUEST" : "RESPONSE");
+	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "Code = %u\n", msg->commandCode);
+	bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "Flags = %x\n", msg->flags);
+
+	AAA_AVP *avp = msg->avpList.head;
+	while (avp) {
+		bytes_encoded += avp2str(avp, buf + bytes_encoded, buf_sz - bytes_encoded, 0);
+
+		/* Ensure buffer can take at least the next \n char */
+		if (buf_sz < bytes_encoded + 1) {
+			LM_ERR("Looks like we've filled the diameter-message-to-string buffer and can't write any more (%i/%i)'\n", bytes_encoded, buf_sz);
+			break;
+		}
+
+		bytes_encoded += snprintf(buf + bytes_encoded, buf_sz - bytes_encoded, "\n");
+		avp = avp->next;
+	}
+
+	return bytes_encoded;
+}
+
+/**
+ *
+ */
+static int avp2str(AAA_AVP *avp, char *buf, unsigned int buf_sz, int depth)
+{
+	int i;
+	AAA_AVP *avp_it;
+	enum { MAX_AVP_DATA_SZ = 8000};
+	char avp_data[MAX_AVP_DATA_SZ] = "";
+	int avp_sz;
+	int avp_data_sz = 0;
+
+	if ((NULL == avp) ||
+	    (NULL == buf) ||
+		(NULL == CDP_AAAUngroupAVPS) ||
+		(NULL == CDP_AAAFreeAVPList)) {
+		LM_ERR("Parameter error: Either avp, buf, CDP_AAAUngroupAVPS, or CDP_AAAFreeAVPList are NULL\n");
+		return 0;
+	}
+
+	/* Initialise with default type */
+	char* data_type_str = "data=";
+
+	/* Data */
+	switch(avp->type) {
+		case AAA_AVP_STRING_TYPE:
+		{
+			data_type_str = "string=";
+			avp_data_sz = snprintf(avp_data,
+				MAX_AVP_DATA_SZ,
+				"'%.*s'",
+				avp->data.len,
+				avp->data.s
+			);
+			break;
+		}
+		case AAA_AVP_INTEGER32_TYPE:
+		{
+			data_type_str = "int=";
+			avp_data_sz += snprintf(avp_data,
+				MAX_AVP_DATA_SZ,
+				"%u",
+				htonl(*((unsigned int*)avp->data.s))
+			);
+			break;
+		}
+		case AAA_AVP_ADDRESS_TYPE:
+		{
+			data_type_str = "address=";
+			i = 1;
+			switch (avp->data.len) {
+				case 4: i=i*0;
+				case 6: i=i*2;
+						avp_data_sz = snprintf(avp_data,
+							MAX_AVP_DATA_SZ,
+							"'%d.%d.%d.%d'",
+							(unsigned char)avp->data.s[i+0],
+							(unsigned char)avp->data.s[i+1],
+							(unsigned char)avp->data.s[i+2],
+							(unsigned char)avp->data.s[i+3]
+						);
+						break;
+				case 16: i=i*0;
+				case 18: i=i*2;
+						avp_data_sz = snprintf(avp_data,
+							MAX_AVP_DATA_SZ,
+							"'%x.%x.%x.%x.%x.%x.%x.%x'",
+							((avp->data.s[i+0]<<8)+avp->data.s[i+1]),
+							((avp->data.s[i+2]<<8)+avp->data.s[i+3]),
+							((avp->data.s[i+4]<<8)+avp->data.s[i+5]),
+							((avp->data.s[i+6]<<8)+avp->data.s[i+7]),
+							((avp->data.s[i+8]<<8)+avp->data.s[i+9]),
+							((avp->data.s[i+10]<<8)+avp->data.s[i+11]),
+							((avp->data.s[i+12]<<8)+avp->data.s[i+13]),
+							((avp->data.s[i+14]<<8)+avp->data.s[i+15])
+						);
+						break;
+			}
+			break;
+		}
+		case AAA_AVP_INTEGER64_TYPE:
+		{
+			LM_WARN("Print error: Don't know how to print AAA_AVP_INTEGER64_TYPE yet. Printing the hex instead...\n");
+			data_type_str = "hex=";
+			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+			break;
+		}
+		case AAA_AVP_TIME_TYPE:
+		{
+			LM_WARN("Print error: Don't know how to print AAA_AVP_TIME_TYPE yet. Printing the hex instead...\n");
+			data_type_str = "hex=";
+			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+			break;
+		}
+		case AAA_AVP_DATA_TYPE:
+		{
+
+			/* Following ims_diameter_server/avp_helper.c avp2json()
+			 * Why is 4 the magic number?
+			 * Why isn't this a int type? */
+			if (4 == avp->data.len) {
+				data_type_str = "int=";
+				avp_data_sz += snprintf(avp_data,
+					MAX_AVP_DATA_SZ,
+					"%u",
+					htonl(*((unsigned int*)avp->data.s))
+				);
+			} else if (4 < avp->data.len) {
+				/* Following ims_diameter_server/avp_helper.c avp2json()
+				 * How is it a string in this case?!? 
+				 * Why isn't it a string type? */
+				int str_len = strnlen(avp->data.s, avp->data.len);
+				if (0 < str_len) {
+					if (is_printable_string(avp->data.s, avp->data.len) && (avp->data.len == str_len)) {
+						data_type_str = "string=";
+						avp_data_sz = snprintf(avp_data, MAX_AVP_DATA_SZ, "'%.*s'", avp->data.len, avp->data.s);
+					} else {
+						data_type_str = "hex=";
+						avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+					}
+				} else {
+					data_type_str = "avp list:";
+					AAA_AVP_LIST list;
+					list = CDP_AAAUngroupAVPS((str)avp->data);
+					avp_it = list.head;
+
+					/* Add newline for prettier format */
+					avp_data_sz = snprintf(avp_data, MAX_AVP_DATA_SZ, "\n");
+
+					while(avp_it) {
+						avp_data_sz += avp2str(avp_it, avp_data + avp_data_sz, MAX_AVP_DATA_SZ - avp_data_sz, depth + 1);
+						avp_it = avp_it->next;
+
+						if ((NULL != avp_it) && 
+						    (avp_data_sz < buf_sz)) {
+							avp_data_sz += snprintf(avp_data + avp_data_sz, MAX_AVP_DATA_SZ - avp_data_sz, "\n");
+						}
+					}
+					CDP_AAAFreeAVPList(&list);
+				}
+			}
+			else {
+				LM_WARN("Print warning: Don't know how to print this specific AAA_AVP_DATA_TYPE value. Printing the hex instead...\n");
+				data_type_str = "hex=";
+				avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+			}
+			break;
+		}
+		default:
+		{
+			data_type_str = "hex=";
+			LM_WARN("Print error: Don't know how to print this data type [%d]. Printing the hex instead...\n", avp->type);
+			avp_data_sz = str_to_hex(&avp->data, avp_data, MAX_AVP_DATA_SZ);
+			break;
+		}
+	}
+
+	char* padding = "\t\t\t\t\t\t\t\t";
+	avp_sz = snprintf(buf, buf_sz, 
+		"%.*sAVP: code=%u vendor=%u flags=%x %s%s",
+		depth, padding,
+		avp->code,
+		avp->vendorId,
+		avp->flags,
+		data_type_str,
+		avp_data);
+
+	return avp_sz;
+}
+
+/**
+ *
+ */
+static int str_to_hex(str* string, char* buf, unsigned int buf_sz) {
+	int bytes_encoded = 0;
+
+	if ((NULL == string) ||
+	    (NULL == buf)) {
+		LM_ERR("Parameter error: string and/or buf are NULL\n");
+		return 0;
+	}
+
+	/* There are 2 chars per byte E.g. 255 == FF */
+	int chars_needed = string->len * 2;
+
+	if (buf_sz <= chars_needed) {
+		LM_ERR("Error: trying to put %i chars into a buffer with %i spaces", chars_needed, buf_sz);
+		return 0;
+	}
+
+	for (int i = 0; i < string->len; ++i) {
+		/* 2 chars per byte */
+		bytes_encoded += snprintf(buf + (i * 2),
+			buf_sz - (i * 2),
+			"%02x",
+			((unsigned char*)string->s)[i]
+		);
+	}
+
+	return bytes_encoded;
+}
+
+/**
+ *
+ */
+int is_printable_string(char* buf, int buf_sz) {
+	for (int i = 0; i < buf_sz; ++i) {
+		int chint = (int)buf[i];
+
+		if ((chint < 0) || (126 < chint)) {
+			return 0;
+		}
+	}
+
+	return 1;
 }

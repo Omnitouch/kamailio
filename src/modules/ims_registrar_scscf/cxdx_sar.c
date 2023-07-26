@@ -362,9 +362,9 @@ int cxdx_send_sar(struct sip_msg *msg, str public_identity, str private_identity
     }
 
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(sar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data);
+        cdpb.AAASendMessageToPeer(sar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
     else
-        cdpb.AAASendMessage(sar, (void*) async_cdp_callback, (void*) transaction_data);
+        cdpb.AAASendMessage(sar, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
 
     return 0;
 

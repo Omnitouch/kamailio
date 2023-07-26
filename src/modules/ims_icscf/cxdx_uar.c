@@ -294,9 +294,9 @@ int cxdx_send_uar(struct sip_msg *msg, str private_identity, str public_identity
         if (!cxdx_add_authorization_type(uar, authorization_type)) goto error1;
 
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(uar, &cxdx_forced_peer, (void*) async_cdp_uar_callback, (void*) transaction_data);
+        cdpb.AAASendMessageToPeer(uar, &cxdx_forced_peer, (void*) async_cdp_uar_callback, (void*) transaction_data, &msg->callid->body);
     else
-        cdpb.AAASendMessage(uar, (void*) async_cdp_uar_callback, (void*) transaction_data);
+        cdpb.AAASendMessage(uar, (void*) async_cdp_uar_callback, (void*) transaction_data, &msg->callid->body);
 
     LM_DBG("Successfully sent async diameter\n");
 
