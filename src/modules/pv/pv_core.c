@@ -3358,6 +3358,73 @@ int pv_get__s(sip_msg_t *msg, pv_param_t *param,
 /**
  *
  */
+int pv_parse_hex_name(pv_spec_p sp, str *in)
+{
+	pv_elem_t *hex_string = NULL;
+
+	if(in->s==NULL || in->len<=0)
+		return -1;
+
+	hex_string = pkg_malloc(sizeof(pv_elem_t));
+	if(hex_string == NULL) {
+		PKG_MEM_ERROR;
+		LM_ERR("Failed to allocate memory... uggg what do now?\n");
+	}
+	memset(hex_string, 0, sizeof(pv_elem_t));
+	hex_string->text = *in;
+
+	LM_ERR("[hex] in = '%.*s'\n", in->len, in->s);
+	
+	sp->pvp.pvn.u.dname = (void*)hex_string;
+	sp->pvp.pvn.type = PV_NAME_OTHER;
+	return 0;
+}
+
+/**
+ *
+ */
+int pv_get_hex(sip_msg_t *msg, pv_param_t *param,
+		pv_value_t *res)
+{
+	str sdata = {0};
+	pv_elem_t *hex_string = NULL;
+	hex_string = (pv_elem_t*)param->pvn.u.dname;
+
+	if (NULL == hex_string)
+	{
+		LM_ERR("[hex] hex_string was null!?!?!\n");
+		return pv_get_null(msg, param, res);
+	}
+
+	sdata.s = pv_get_buffer();
+	sdata.len = pv_get_buffer_size();
+
+	LM_ERR("[hex] hex_string->text = '%.*s'\n", hex_string->text.len, hex_string->text.s);
+
+	if ((0 != hex_string->text.len % 2) ||
+		(sdata.len <= hex_string->text.len))
+	{
+		LM_ERR("[hex] hex shit went bad somehow!?!?!\n");
+		return pv_get_null(msg, param, res);
+	}
+
+	int bytes_to_encode = hex_string->text.len / 2;
+	for (int i = 0; i < bytes_to_encode; ++i) {
+		int byte = 0;
+        sscanf(&hex_string->text.s[i * 2], "%2x", &byte);
+		sdata.s[i] = (char)byte;
+		LM_ERR("[hex] val = '%02X'  \n", byte);
+	}
+	sdata.len = bytes_to_encode;
+
+	LM_ERR("[hex] num = %i  \n", sdata.len);
+
+	return pv_get_strval(msg, param, res, &sdata);
+}
+
+/**
+ *
+ */
 int pv_parse_expires_name(pv_spec_p sp, str *in)
 {
 	if(sp==NULL || in==NULL || in->len<=0)

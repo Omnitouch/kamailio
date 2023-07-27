@@ -363,6 +363,11 @@ int pv_parse__s_name(pv_spec_p sp, str *in);
 int pv_get__s(sip_msg_t *msg, pv_param_t *param,
 		pv_value_t *res);
 
+int pv_parse_hex_name(pv_spec_p sp, str *in);
+
+int pv_get_hex(sip_msg_t *msg, pv_param_t *param,
+		pv_value_t *res);
+
 int pv_parse_expires_name(pv_spec_p sp, str *in);
 
 int pv_get_expires(sip_msg_t *msg, pv_param_t *param,
