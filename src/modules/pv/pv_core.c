@@ -3404,7 +3404,7 @@ int pv_get_hex(sip_msg_t *msg, pv_param_t *param,
 
 	/* There are 2 chars per bytes so input must be multple of 2 */
 	if (0 != hex_string->text.len % 2) {
-		LM_ERR("Parameter error: expected a string with a length divisible by 2,"
+		LM_ERR("Parameter error: expected a string with a length divisible by 2, "
 			   "however we received '%.*s' with a length of %i \n",
 			    hex_string->text.len,
 				hex_string->text.s,
