@@ -330,6 +330,9 @@ static pv_export_t mod_pvs[] = {
 	{{"rb", (sizeof("rb")-1)}, /* */
 		PVT_MSG_BODY, pv_get_msg_body, 0,
 		0, 0, 0, 0},
+	{{"rb_hex", (sizeof("rb_hex")-1)}, /* */
+		PVT_MSG_BODY, pv_get_msg_body_hex, 0,
+		0, 0, 0, 0},
 	/* {{"rc", (sizeof("rc")-1)},
 		PVT_OTHER, pv_get_return_code, 0,
 		0, 0, 0, 0},

@@ -1455,6 +1455,24 @@ int pv_get_msg_body(struct sip_msg *msg, pv_param_t *param,
 	return pv_get_strval(msg, param, res, &s);
 }
 
+int pv_get_msg_body_hex(struct sip_msg *msg, pv_param_t *param,
+		pv_value_t *res)
+{
+	str s;
+	if(msg==NULL)
+		return -1;
+
+	s.s = get_body( msg );
+
+	if(s.s == NULL)
+	{
+		LM_DBG("no message body\n");
+		return pv_get_null(msg, param, res);
+	}
+	s.len = msg->buf + msg->len - s.s;
+
+	return pv_get_strval_hex(msg, param, res, &s);
+}
 
 int pv_get_body_size(struct sip_msg *msg, pv_param_t *param,
 		pv_value_t *res)
