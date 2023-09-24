@@ -1,5 +1,5 @@
 # 
-# WARNING: do not run this directly, it should be run by the master Makefile
+# WARNING: do not run this directly, it should be run by the main Makefile
 
 include ../../Makefile.defs
 auto_gen=
@@ -13,7 +13,10 @@ PYTHON=$(shell which python2)
 
 # workaround for some OS (like MacOS) that don't have a python2 link
 ifeq ($(PYTHON),)
+PYTHON=$(shell which python2.7)
+ifeq ($(PYTHON),)
 PYTHON=python
+endif
 endif
 
 PYTHON_VERSION=${shell ${PYTHON} -c "import distutils.sysconfig;print distutils.sysconfig.get_config_var('VERSION')"}
@@ -28,6 +31,10 @@ LIBS+=-pthread
 endif
 
 DEFS+=-I${PYTHON_INCDIR}
+
+ifeq ($(CC_NAME), gcc)
+DEFS+= -fno-strict-aliasing
+endif
 
 include ../../Makefile.modules
 
