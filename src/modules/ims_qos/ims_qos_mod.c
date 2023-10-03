@@ -430,11 +430,18 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 		int current_has_video = 0;
 		int new_has_video = 0;
 		int must_unlock_aaa = 1;
+		str *callid = NULL;
 
 		if (rx_session_id == 0) {
 				LM_WARN("Strange... no rx session ID in callback.... why?\n");
 				return;
 		}
+
+		if ((NULL != msg) &&
+		    (NULL != msg->callid)) {
+			callid = &msg->callid->body;
+		}
+
 		//getting session data
 
 		LM_DBG("Dialog callback of type %d received\n", type);
@@ -446,7 +453,7 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 						rx_session_id->len, rx_session_id->s);
 
 				LM_DBG("Sending STR\n");
-				rx_send_str(rx_session_id, &msg->callid->body);
+				rx_send_str(rx_session_id, callid);
 		} else if (type == DLGCB_CONFIRMED) {
 
 				LM_DBG("Callback for confirmed dialog - copy new flow description into current flow description\n");
