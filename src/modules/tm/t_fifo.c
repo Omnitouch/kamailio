@@ -79,7 +79,7 @@
 #define eol_line(_i_,_s_)      { eol_line_s(_i_) = (_s_).s; \
 									eol_line_len(_i_) = (_s_).len; }
 
-#define IDBUF_LEN              128
+#define IDBUF_LEN              10
 #define ROUTE_BUFFER_MAX       512
 #define APPEND_BUFFER_MAX      4096
 #define CMD_BUFFER_MAX         128
