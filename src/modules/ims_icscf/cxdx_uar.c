@@ -271,6 +271,7 @@ int cxdx_send_uar(struct sip_msg *msg, str private_identity, str public_identity
         int authorization_type, int sos_reg, saved_uar_transaction_t* transaction_data) {
     AAAMessage *uar = 0;
     AAASession *session = 0;
+    str* correlationID = NULL;
 
     session = cdpb.AAACreateSession(0);
 
@@ -293,10 +294,16 @@ int cxdx_send_uar(struct sip_msg *msg, str private_identity, str public_identity
     if (authorization_type != AVP_IMS_UAR_REGISTRATION)
         if (!cxdx_add_authorization_type(uar, authorization_type)) goto error1;
 
+    if (msg && msg->callid) {
+        correlationID = &msg->callid->body;
+    } else {
+        correlationID = NULL;
+    }
+
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(uar, &cxdx_forced_peer, (void*) async_cdp_uar_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessageToPeer(uar, &cxdx_forced_peer, (void*) async_cdp_uar_callback, (void*) transaction_data, correlationID);
     else
-        cdpb.AAASendMessage(uar, (void*) async_cdp_uar_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessage(uar, (void*) async_cdp_uar_callback, (void*) transaction_data, correlationID);
 
     LM_DBG("Successfully sent async diameter\n");
 

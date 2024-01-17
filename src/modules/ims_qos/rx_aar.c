@@ -780,6 +780,8 @@ int rx_send_aar(struct sip_msg *req, struct sip_msg *res,
     str ip;
     uint16_t ip_version;
 
+    str* correlationID = NULL;
+
     //we get ip and identifier for the auth session data
     rx_authsessiondata_t* p_session_data = 0;
     p_session_data = (rx_authsessiondata_t*) auth->u.auth.generic_data;
@@ -912,13 +914,19 @@ int rx_send_aar(struct sip_msg *req, struct sip_msg *res,
     if (auth)
         cdpb.AAASessionsUnlock(auth->hash);
 
+    if (req && req->callid) {
+        correlationID = &req->callid->body;
+    } else {
+        correlationID = NULL;
+    }
+
     LM_DBG("sending AAR to PCRF\n");
     if (rx_forced_peer.len)
         ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer,
-            (void*) async_aar_callback, (void*) saved_t_data, &req->callid->body);
+            (void*) async_aar_callback, (void*) saved_t_data, correlationID);
     else
         ret = cdpb.AAASendMessage(aar, (void*) async_aar_callback,
-            (void*) saved_t_data, &req->callid->body);
+            (void*) saved_t_data, correlationID);
 
     return ret;
 
@@ -953,6 +961,8 @@ int rx_send_aar_register(struct sip_msg *msg, AAASession* auth, saved_transactio
 
     str ip;
     uint16_t ip_version;
+
+    str* correlationID = NULL;
 
     //we get ip and identifier for the auth session data
     rx_authsessiondata_t* p_session_data = 0;
@@ -1050,13 +1060,19 @@ int rx_send_aar_register(struct sip_msg *msg, AAASession* auth, saved_transactio
     if (auth)
         cdpb.AAASessionsUnlock(auth->hash);
 
+    if (msg && msg->callid) {
+        correlationID = &msg->callid->body;
+    } else {
+        correlationID = NULL;
+    }
+
     LM_DBG("sending AAR to PCRF\n");
     if (rx_forced_peer.len)
         ret = cdpb.AAASendMessageToPeer(aar, &rx_forced_peer,
-            (void*) async_aar_reg_callback, (void*) saved_t_data, &msg->callid->body);
+            (void*) async_aar_reg_callback, (void*) saved_t_data, correlationID);
     else
         ret = cdpb.AAASendMessage(aar, (void*) async_aar_reg_callback,
-            (void*) saved_t_data, &msg->callid->body);
+            (void*) saved_t_data, correlationID);
 
     return ret;
 

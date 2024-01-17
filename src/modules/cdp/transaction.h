@@ -49,19 +49,21 @@
 #include "diameter.h"
 #include "diameter_api.h"
 
+#define MAX_CORRELATION_ID_SZ 128
+
 /** Diameter Transaction representation */
 typedef struct _cdp_trans_t{
-	struct timeval started;			/**< Time the transaction was created - used to measure response times */
-	AAAMsgIdentifier endtoendid;	/**< End-to-end id of the messages */
-	AAAMsgIdentifier hopbyhopid;	/**< Hop-by-hop id of the messages */
-	AAATransactionCallback_f *cb;	/**< transactional callback function */
-	char correlationID[64];         /**< copy of the correlationID for hlog-ing the diameter answer */
-	void **ptr;						/**< generic pointer to pass to the callback */
-	AAAMessage *ans;				/**< answer for the transaction */
-	time_t expires;					/**< time of expiration, when a time-out event will happen */
-	int auto_drop;					/**< if to drop automatically the transaction on event or to let the app do it later */
-	struct _cdp_trans_t *next;		/**< the next transaction in the transaction list */
-	struct _cdp_trans_t *prev;		/**< the previous transaction in the transaction list */
+	struct timeval started;			           /**< Time the transaction was created - used to measure response times */
+	AAAMsgIdentifier endtoendid;	           /**< End-to-end id of the messages */
+	AAAMsgIdentifier hopbyhopid;	           /**< Hop-by-hop id of the messages */
+	AAATransactionCallback_f *cb;	           /**< transactional callback function */
+	char correlationID[MAX_CORRELATION_ID_SZ]; /**< copy of the correlationID for hlog-ing the diameter answer */
+	void **ptr;						           /**< generic pointer to pass to the callback */
+	AAAMessage *ans;				           /**< answer for the transaction */
+	time_t expires;					           /**< time of expiration, when a time-out event will happen */
+	int auto_drop;					           /**< if to drop automatically the transaction on event or to let the app do it later */
+	struct _cdp_trans_t *next;		           /**< the next transaction in the transaction list */
+	struct _cdp_trans_t *prev;		           /**< the previous transaction in the transaction list */
 } cdp_trans_t;
 
 /** Diameter Transaction list */

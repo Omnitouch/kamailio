@@ -258,6 +258,7 @@ int diameter_request(struct sip_msg * msg, char* peer, char* appid, char* comman
 	AAAMessage *req = 0;
 	AAASession *session = 0;
 	AAAMessage *resp = 0;
+    str* correlationID = NULL;
 
 	unsigned int i_appid, i_commandcode;
 
@@ -306,14 +307,19 @@ int diameter_request(struct sip_msg * msg, char* peer, char* appid, char* comman
 		return -1;
 	}
 
+    if (msg && msg->callid) {
+        correlationID = &msg->callid->body;
+    } else {
+        correlationID = NULL;
+    }
 
 	if (peer && (s_peer.len > 0)) {
 		if (async) {
-			cdpb.AAASendMessageToPeer(req, &s_peer, (void*) async_cdp_diameter_callback, req, &msg->callid->body);
+			cdpb.AAASendMessageToPeer(req, &s_peer, (void*) async_cdp_diameter_callback, req, correlationID);
 			LM_DBG("Successfully sent async diameter\n");
 			return 0;
 		} else {
-			resp = cdpb.AAASendRecvMessageToPeer(req, &s_peer, &msg->callid->body);
+			resp = cdpb.AAASendRecvMessageToPeer(req, &s_peer, correlationID);
 			LM_DBG("Successfully sent diameter\n");
 			if (AAAmsg2json(resp, &responsejson) == 1) {
 				return 1;
@@ -324,11 +330,11 @@ int diameter_request(struct sip_msg * msg, char* peer, char* appid, char* comman
 		}
 	} else {
 		if (async) {
-			cdpb.AAASendMessage(req, (void*) async_cdp_diameter_callback, req, &msg->callid->body);
+			cdpb.AAASendMessage(req, (void*) async_cdp_diameter_callback, req, correlationID);
 			LM_DBG("Successfully sent async diameter\n");
 			return 0;
 		} else {
-			resp = cdpb.AAASendRecvMessage(req, &msg->callid->body);
+			resp = cdpb.AAASendRecvMessage(req, correlationID);
 			LM_DBG("Successfully sent diameter\n");
 			if (AAAmsg2json(resp, &responsejson) == 1) {
 				return 1;
