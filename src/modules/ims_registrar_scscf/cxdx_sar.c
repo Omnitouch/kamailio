@@ -325,6 +325,7 @@ int cxdx_send_sar(struct sip_msg *msg, str public_identity, str private_identity
     unsigned int hash = 0, label = 0;
     struct hdr_field *hdr;
 	str call_id;
+    str* correlationID = NULL;
 
     session = cdpb.AAACreateSession(0);
 
@@ -361,10 +362,17 @@ int cxdx_send_sar(struct sip_msg *msg, str public_identity, str private_identity
         //return 0;
     }
 
+    /* TODO: use cscf_get_call_id instead? */
+    if (msg && msg->callid) {
+        correlationID = &msg->callid->body;
+    } else {
+        correlationID = NULL;
+    }
+
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(sar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessageToPeer(sar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, correlationID);
     else
-        cdpb.AAASendMessage(sar, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessage(sar, (void*) async_cdp_callback, (void*) transaction_data, correlationID);
 
     return 0;
 

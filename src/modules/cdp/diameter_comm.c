@@ -369,9 +369,8 @@ AAAMessage* AAASendRecvMessageToPeer(AAAMessage *message, str *peer_id, str* cor
 		}
 		sem_free(sem);
 
-		hlog_message(ans, correlationID);
-
 		ans = t->ans;
+		hlog_message(ans, correlationID);
 		cdp_free_trans(t);
 		return ans;
 	} else {

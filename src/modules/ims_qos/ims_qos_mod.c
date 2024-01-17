@@ -564,7 +564,7 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 												LM_DBG("New flow description has video in it, and current does not - this means we added video and it failed further upstream - "
 														"so we must remove the video\n");
 												//We need to send AAR asynchronously with current fd
-												rx_send_aar_update_no_video(auth, &msg->callid->body);
+												rx_send_aar_update_no_video(auth, callid);
 												must_unlock_aaa = 0;
 
 										}

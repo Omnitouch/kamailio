@@ -508,6 +508,7 @@ int cxdx_send_mar(struct sip_msg *msg, str public_identity, str private_identity
         unsigned int count, str algorithm, str authorization, str server_name, saved_transaction_t* transaction_data) {
     AAAMessage *mar = 0;
     AAASession *session = 0;
+    str* correlationID = NULL;
 
     session = cdpb.AAACreateSession(0);
 
@@ -540,10 +541,16 @@ int cxdx_send_mar(struct sip_msg *msg, str public_identity, str private_identity
     }
     if (!cxdx_add_server_name(mar, server_name)) goto error1;
 
+    if (msg && msg->callid) {
+        correlationID = get_callid(msg);
+    } else {
+        correlationID = NULL;
+    }
+
     if (cxdx_forced_peer.len)
-        cdpb.AAASendMessageToPeer(mar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessageToPeer(mar, &cxdx_forced_peer, (void*) async_cdp_callback, (void*) transaction_data, correlationID);
     else
-        cdpb.AAASendMessage(mar, (void*) async_cdp_callback, (void*) transaction_data, &msg->callid->body);
+        cdpb.AAASendMessage(mar, (void*) async_cdp_callback, (void*) transaction_data, correlationID);
 
 
     LM_DBG("Successfully sent async diameter\n");
@@ -555,4 +562,3 @@ error1: //Only free MAR IFF is has not been passed to CDP
     LM_ERR("Error occurred trying to send MAR\n");
     return -1;
 }
-

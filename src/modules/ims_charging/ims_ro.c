@@ -1058,6 +1058,8 @@ int Ro_Send_CCR(struct sip_msg *msg, struct dlg_cell *dlg, int dir, int reservat
 
     int sdp_stream_num = 0;
 
+    str* correlationID = NULL;
+
     LM_DBG("Sending initial CCR request (%c) for reservation_units [%d] incoming_trunk_id [%.*s] outgoing_trunk_id [%.*s]\n",
 	dir==RO_ORIG_DIRECTION?'O':'T',
 			reservation_units,
@@ -1228,12 +1230,18 @@ int Ro_Send_CCR(struct sip_msg *msg, struct dlg_cell *dlg, int dir, int reservat
 //    new_session->ccr_sent = 1;      //assume we will send successfully
     cdpb.AAASessionsUnlock(cc_acc_session->hash);
 
+    if (msg && msg->callid) {
+        correlationID = &msg->callid->body;
+    } else {
+        correlationID = NULL;
+    }
+
     if (ro_forced_peer.len > 0) {
         LM_DBG("Sending message with Peer\n");
-        ret = cdpb.AAASendMessageToPeer(ccr, &ro_forced_peer, resume_on_initial_ccr, (void *) ssd, &msg->callid->body);
+        ret = cdpb.AAASendMessageToPeer(ccr, &ro_forced_peer, resume_on_initial_ccr, (void *) ssd, correlationID);
     } else {
         LM_DBG("Sending message without Peer and realm is [%.*s]\n", ccr->dest_realm->data.len, ccr->dest_realm->data.s);
-        ret = cdpb.AAASendMessage(ccr, resume_on_initial_ccr, (void *) ssd, &msg->callid->body);
+        ret = cdpb.AAASendMessage(ccr, resume_on_initial_ccr, (void *) ssd, correlationID);
     }
 
     if (ret != 1) {
