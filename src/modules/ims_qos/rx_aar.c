@@ -914,7 +914,7 @@ int rx_send_aar(struct sip_msg *req, struct sip_msg *res,
     if (auth)
         cdpb.AAASessionsUnlock(auth->hash);
 
-    if (req && req->callid) {
+    if ((NULL != req) && (FAKED_REPLY != req) && (NULL != req->callid)) {
         correlationID = &req->callid->body;
     } else {
         correlationID = NULL;
@@ -1060,7 +1060,7 @@ int rx_send_aar_register(struct sip_msg *msg, AAASession* auth, saved_transactio
     if (auth)
         cdpb.AAASessionsUnlock(auth->hash);
 
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;

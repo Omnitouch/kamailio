@@ -254,7 +254,7 @@ int cxdx_send_lir(struct sip_msg *msg, str public_identity, saved_lir_transactio
     if (!cxdx_add_auth_session_state(lir, 1)) goto error1;
     if (!cxdx_add_public_identity(lir, public_identity)) goto error1;
 
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;

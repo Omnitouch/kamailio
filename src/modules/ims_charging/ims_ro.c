@@ -1230,7 +1230,7 @@ int Ro_Send_CCR(struct sip_msg *msg, struct dlg_cell *dlg, int dir, int reservat
 //    new_session->ccr_sent = 1;      //assume we will send successfully
     cdpb.AAASessionsUnlock(cc_acc_session->hash);
 
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;

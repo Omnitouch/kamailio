@@ -307,7 +307,7 @@ int diameter_request(struct sip_msg * msg, char* peer, char* appid, char* comman
 		return -1;
 	}
 
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;

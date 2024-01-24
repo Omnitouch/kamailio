@@ -294,7 +294,7 @@ int cxdx_send_uar(struct sip_msg *msg, str private_identity, str public_identity
     if (authorization_type != AVP_IMS_UAR_REGISTRATION)
         if (!cxdx_add_authorization_type(uar, authorization_type)) goto error1;
 
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;

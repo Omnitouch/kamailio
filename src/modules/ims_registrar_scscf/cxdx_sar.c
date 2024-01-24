@@ -363,7 +363,7 @@ int cxdx_send_sar(struct sip_msg *msg, str public_identity, str private_identity
     }
 
     /* TODO: use cscf_get_call_id instead? */
-    if (msg && msg->callid) {
+    if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
         correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;
