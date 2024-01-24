@@ -542,7 +542,7 @@ int cxdx_send_mar(struct sip_msg *msg, str public_identity, str private_identity
     if (!cxdx_add_server_name(mar, server_name)) goto error1;
 
     if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid)) {
-        correlationID = get_callid(msg);
+        correlationID = &msg->callid->body;
     } else {
         correlationID = NULL;
     }
