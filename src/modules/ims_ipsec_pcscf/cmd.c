@@ -208,6 +208,12 @@ static int fill_contact(struct pcontact_info* ci, struct sip_msg* m)
         memset(&req_msg, 0, sizeof(struct sip_msg));
         req_msg.buf =
             (char*) pkg_malloc((t->uas.request->len + 1) * sizeof(char));
+
+        if (NULL == req_msg.buf) {
+            LM_ERR("req_msg.buf malloc failed\n");
+            return -1;
+        }
+
         memcpy(req_msg.buf, t->uas.request->buf, t->uas.request->len);
         req_msg.buf[t->uas.request->len] = '\0';
         req_msg.len = t->uas.request->len;
