@@ -437,8 +437,8 @@ void callback_dialog(struct dlg_cell* dlg, int type, struct dlg_cb_params * para
 				return;
 		}
 
-		if ((NULL != msg) &&
-		    (NULL != msg->callid)) {
+		if ((NULL != msg) && (FAKED_REPLY != msg) && (NULL != msg->callid))
+		{
 			callid = &msg->callid->body;
 		}
 
